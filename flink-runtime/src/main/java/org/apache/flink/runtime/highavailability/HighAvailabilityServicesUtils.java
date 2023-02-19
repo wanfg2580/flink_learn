@@ -87,7 +87,7 @@ public class HighAvailabilityServicesUtils {
             Configuration configuration, Executor executor, FatalErrorHandler fatalErrorHandler)
             throws Exception {
         BlobStoreService blobStoreService = BlobUtils.createBlobStoreFromConfig(configuration);
-
+        // 创建 CuratorFramework 包装类
         final CuratorFrameworkWithUnhandledErrorListener curatorFrameworkWrapper =
                 ZooKeeperUtils.startCuratorFramework(configuration, fatalErrorHandler);
 
@@ -107,6 +107,7 @@ public class HighAvailabilityServicesUtils {
             FatalErrorHandler fatalErrorHandler)
             throws Exception {
 
+        // 获取HA 模式，zookeeper 或 k8s HA
         HighAvailabilityMode highAvailabilityMode = HighAvailabilityMode.fromConfig(configuration);
 
         switch (highAvailabilityMode) {

@@ -159,7 +159,7 @@ public class AkkaRpcService implements RpcService {
         terminationFuture = new CompletableFuture<>();
 
         stopped = false;
-
+        // 启动 actor
         supervisor = startSupervisorActor();
         startDeadLettersActor();
     }
@@ -179,7 +179,7 @@ public class AkkaRpcService implements RpcService {
                 SupervisorActor.startSupervisorActor(
                         actorSystem,
                         withContextClassLoader(terminationFutureExecutor, flinkClassLoader));
-
+        // 创建 Supervisor actor
         return Supervisor.create(actorRef, terminationFutureExecutor);
     }
 
