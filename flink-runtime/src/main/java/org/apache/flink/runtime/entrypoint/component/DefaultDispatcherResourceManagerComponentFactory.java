@@ -85,11 +85,14 @@ public class DefaultDispatcherResourceManagerComponentFactory
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    @Nonnull private final DispatcherRunnerFactory dispatcherRunnerFactory;
+    @Nonnull
+    private final DispatcherRunnerFactory dispatcherRunnerFactory;
 
-    @Nonnull private final ResourceManagerFactory<?> resourceManagerFactory;
+    @Nonnull
+    private final ResourceManagerFactory<?> resourceManagerFactory;
 
-    @Nonnull private final RestEndpointFactory<?> restEndpointFactory;
+    @Nonnull
+    private final RestEndpointFactory<?> restEndpointFactory;
 
     public DefaultDispatcherResourceManagerComponentFactory(
             @Nonnull DispatcherRunnerFactory dispatcherRunnerFactory,
@@ -157,24 +160,33 @@ public class DefaultDispatcherResourceManagerComponentFactory
                     updateInterval == 0
                             ? VoidMetricFetcher.INSTANCE
                             : MetricFetcherImpl.fromConfiguration(
-                                    configuration,
-                                    metricQueryServiceRetriever,
-                                    dispatcherGatewayRetriever,
-                                    executor);
-            // 使用工厂类创建 webMonitorEndpoint
-            webMonitorEndpoint =
-                    restEndpointFactory.createRestEndpoint(
                             configuration,
+                            metricQueryServiceRetriever,
                             dispatcherGatewayRetriever,
-                            resourceManagerGatewayRetriever,
-                            blobServer,
-                            executor,
-                            metricFetcher,
-                            highAvailabilityServices.getClusterRestEndpointLeaderElectionService(),
-                            fatalErrorHandler);
+                            executor);
+            /**
+             *  使用工厂类创建 WebMonitorEndpoint 实例， 在 Standalone模式下：DispatcherRestEndpoint
+             *  1、restEndpointFactory = SessionRestEndpointFactory
+             *  2、webMonitorEndpoint = DispatcherRestEndpoint
+             *  3、highAvailabilityServices.getClusterRestEndpointLeaderElectionService() = ZooKeeperLeaderElectionService
+             */
+            webMonitorEndpoint = restEndpointFactory.createRestEndpoint(
+                    configuration,
+                    dispatcherGatewayRetriever,
+                    resourceManagerGatewayRetriever,
+                    blobServer,
+                    executor,
+                    metricFetcher,
+                    highAvailabilityServices.getClusterRestEndpointLeaderElectionService(),
+                    fatalErrorHandler);
 
             log.debug("Starting Dispatcher REST endpoint.");
-            // 启动 webMonitorEndpoint
+            /**
+             * 启动 webMonitorEndpoint，即启动 DispatcherRestEndpoint
+             * 1. 启动 Netty 客户端
+             * 2. 选举
+             * 3. 启动定时任务 ExecutionGraphCacheCleanupTask
+             */
             webMonitorEndpoint.start();
 
             final String hostname = RpcUtils.getHostname(rpcService);
@@ -232,7 +244,11 @@ public class DefaultDispatcherResourceManagerComponentFactory
                             partialDispatcherServices);
 
             log.debug("Starting ResourceManagerService.");
-            // 启动 resourceManagerService
+            /**
+             * 启动 resourceManagerService
+             * 1. resourceManager 选举
+             * 2. 选举成功后调用 leader.isLeader 启动 resourceManager
+             */
             resourceManagerService.start();
 
             resourceManagerRetrievalService.start(resourceManagerGatewayRetriever);

@@ -265,6 +265,13 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
                 .build();
     }
 
+    /**
+     *  ChannelInboundHandler  channelRead0()  方法，这个方法会自动被 Netty 去调用执行
+     *  这里初始化的所有 Handler， 里面都有一个 handleRequest 的方法
+     *  channelRead0() 的底层，最终调用的就是 Handler.handleRequest() 方法
+     *  将来我们提交 Job 的时候，最终，由 WebMonitorEndpoint 接收到，跳转到 JobSubmitHandler 来执行
+     *  最终执行请求的就是 handleRequest()
+     */
     @Override
     protected List<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> initializeHandlers(
             final CompletableFuture<String> localAddressFuture) {
@@ -991,6 +998,11 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
                 .filter(handler -> handler instanceof JsonArchivist)
                 .forEachOrdered(handler -> archivingHandlers.add((JsonArchivist) handler));
 
+        /**
+         *  返回一堆的 Handlers
+         *  这些 Handler 的作用，其实就对应到 Flink web 业务的 rest 服务, Handler == Servlet
+         *  bigdata02:port/list
+         */
         return handlers;
     }
 
@@ -999,9 +1011,24 @@ public class WebMonitorEndpoint<T extends RestfulGateway> extends RestServerEndp
         return Collections.emptyList();
     }
 
+    /**
+     *  主节点中的三个重要的组件：
+     *  1、ResourceManager
+     *  2、Dispatcher
+     *  3、WebMonitorEndpint
+     *  启动的时候， 都会进行选举，通过选举来触发服务的启动
+     */
     @Override
     public void startInternal() throws Exception {
+        /**
+         *  选举
+         *  不管在那个地方见到这种格式的代码：leaderElectionService.start(this);
+         *  最终，
+         *  1、参与选举的 某个获胜的角色会调用： leaderLatchListener.isLeader() ==> leaderContender.grantLeaderShip()
+         *  2、参与选举的 某个失败的角色会调用： leaderLatchListener.notLeader()
+         */
         leaderElectionService.start(this);
+        // 启动定时任务，清理task 无效文件 scheduleWithFixedDelay
         startExecutionGraphCacheCleanupTask();
 
         if (hasWebUI) {

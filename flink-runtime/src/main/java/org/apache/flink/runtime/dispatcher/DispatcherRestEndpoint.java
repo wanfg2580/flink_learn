@@ -83,6 +83,7 @@ public class DispatcherRestEndpoint extends WebMonitorEndpoint<DispatcherGateway
     @Override
     protected List<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> initializeHandlers(
             final CompletableFuture<String> localAddressFuture) {
+        // 调用父类 WebMonitorEndpoint，初始化一堆 处理器
         List<Tuple2<RestHandlerSpecification, ChannelInboundHandler>> handlers =
                 super.initializeHandlers(localAddressFuture);
 
@@ -90,6 +91,10 @@ public class DispatcherRestEndpoint extends WebMonitorEndpoint<DispatcherGateway
 
         final Time timeout = restConfiguration.getTimeout();
 
+        /**
+         *  JobSubmit Handler 任务提交处理器
+         *  将来客户端提交应用程序上来，由 JobManager 中的 Netty 服务端的 JobSubmitHandler 来执行处理
+         */
         JobSubmitHandler jobSubmitHandler =
                 new JobSubmitHandler(
                         leaderRetriever, timeout, responseHeaders, executor, clusterConfiguration);
@@ -101,7 +106,7 @@ public class DispatcherRestEndpoint extends WebMonitorEndpoint<DispatcherGateway
 
     @Override
     protected Collection<Tuple2<RestHandlerSpecification, ChannelInboundHandler>>
-            initializeWebSubmissionHandlers(CompletableFuture<String> localAddressFuture) {
+    initializeWebSubmissionHandlers(CompletableFuture<String> localAddressFuture) {
         if (restConfiguration.isWebSubmitEnabled()) {
             try {
                 final Time timeout = restConfiguration.getTimeout();

@@ -181,7 +181,19 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             LOG.error(msg);
             throw new IllegalConfigurationException(msg);
         }
-
+        /**
+         *  shutdown hook 就是已经初始化但尚未开始执行的线程对象。在Runtime 注册后，如果JVM要停止前，
+         * 	这些 shutdown hook 便开始执行。也就是在程序结束前，执行一些清理工作。
+         * 	这些 shutdown hook 都是些线程对象，因此清理工作要写在 run() 里。
+         * 	这里钩子的作用就是执行所有service的关闭方法。
+         * 	以下几种场景会被调用：
+         * 		1.程序正常退出
+         * 		2.使用System.exit()
+         * 		3.终端使用Ctrl+C触发的中断
+         * 		4.系统关闭
+         * 		5.OutOfMemory宕机
+         * 		6.使用Kill pid命令干掉进程（注：在使用kill -9 pid时，是不会被调用的）
+         */
         shutDownHook =
                 ShutdownHookUtil.addShutdownHook(
                         () -> this.closeAsync().join(), getClass().getSimpleName(), LOG);
@@ -221,7 +233,8 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             FlinkSecurityManager.setFromConfiguration(configuration);
             // 启动插件管理器，负责管理集群插件
             // 不同的插件使用单独的类加载器加载，避免插件插件依赖影响
-            PluginManager pluginManager = PluginUtils.createPluginManagerFromRootFolder(configuration);
+            PluginManager pluginManager = PluginUtils.createPluginManagerFromRootFolder(
+                    configuration);
             /**
              * 根据配置初始化文件系统
              * 1. 本地文件，客户端需要使用，会将 JobGraph 序列化为 JobGraphFile
@@ -248,10 +261,10 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             try {
                 // clean up any partial state
                 shutDownAsync(
-                                ApplicationStatus.FAILED,
-                                ShutdownBehaviour.GRACEFUL_SHUTDOWN,
-                                ExceptionUtils.stringifyException(strippedThrowable),
-                                false)
+                        ApplicationStatus.FAILED,
+                        ShutdownBehaviour.GRACEFUL_SHUTDOWN,
+                        ExceptionUtils.stringifyException(strippedThrowable),
+                        false)
                         .get(
                                 INITIALIZATION_SHUTDOWN_TIMEOUT.toMilliseconds(),
                                 TimeUnit.MILLISECONDS);
@@ -315,10 +328,9 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
              *  2. ResourceManagerFactory = StandaloneResourceManagerFactory
              *  3. RestEndpointFactory（WenMonitorEndpoint的工厂） = SessionRestEndpointFactory
              *  返回值：DefaultDispatcherResourceManagerComponentFactory 内部包含了三个成员变量，就是这三个工厂实例
-             *  
              */
             final DispatcherResourceManagerComponentFactory dispatcherResourceManagerComponentFactory =
-                            createDispatcherResourceManagerComponentFactory(configuration);
+                    createDispatcherResourceManagerComponentFactory(configuration);
 
             /*
              * 使用工程类创建组件
@@ -344,7 +356,9 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
                             new RpcMetricQueryServiceRetriever(
                                     metricRegistry.getMetricQueryServiceRpcService()),
                             this);
-
+            /**
+             *  集群关闭时的回调
+             */
             clusterComponent
                     .getShutDownFuture()
                     .whenComplete(
@@ -400,12 +414,12 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
 
             rpcSystem = RpcSystem.load(configuration);
             /*
-            * 第一步：
-            * 创建 commonRpcService : 即一个基于 akka 的 actorSystem，就是一个 tcp 的 rpc 服务，端口为 6123
-            * 1. 初始化 ActorSystem
-            * 2. 启动 Actor
-            * 启动一个 commonRpcServices 内部启动一个 ActorSystem， 这个 ActorSystem 启动一个 Actor
-            */
+             * 第一步：
+             * 创建 commonRpcService : 即一个基于 akka 的 actorSystem，就是一个 tcp 的 rpc 服务，端口为 6123
+             * 1. 初始化 ActorSystem
+             * 2. 启动 Actor
+             * 启动一个 commonRpcServices 内部启动一个 ActorSystem， 这个 ActorSystem 启动一个 Actor
+             */
             commonRpcService =
                     RpcUtils.createRemoteRpcService(
                             rpcSystem,
@@ -452,7 +466,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
             /*
              * 第五步
              *  初始化一个提供 心跳服务 的服务
-             *  在主节点中，其实有很多角色都有心跳服务。 那些这些角色的心跳服务，都是在这个 heartbeatServices 的基础之上创建的
+             *  在主节点中，有很多角色都有心跳服务。 这些角色的心跳服务，都是在这个 heartbeatServices 的基础之上创建的
              *  真正的 心跳服务的 提供者，谁需要心跳服务，通过 heartbeatServices 去提供一个实例 HeartBeatImpl，用来完成心跳
              */
             heartbeatServices = createHeartbeatServices(configuration);
@@ -508,6 +522,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
      * Returns the port range for the common {@link RpcService}.
      *
      * @param configuration to extract the port range from
+     *
      * @return Port range for the common {@link RpcService}
      */
     protected String getRPCPortRange(Configuration configuration) {
@@ -548,11 +563,12 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
         ShutdownHookUtil.removeShutdownHook(shutDownHook, getClass().getSimpleName(), LOG);
 
         return shutDownAsync(
-                        ApplicationStatus.UNKNOWN,
-                        ShutdownBehaviour.PROCESS_FAILURE,
-                        "Cluster entrypoint has been closed externally.",
-                        false)
-                .thenAccept(ignored -> {});
+                ApplicationStatus.UNKNOWN,
+                ShutdownBehaviour.PROCESS_FAILURE,
+                "Cluster entrypoint has been closed externally.",
+                false)
+                .thenAccept(ignored -> {
+                });
     }
 
     protected CompletableFuture<Void> stopClusterServices(boolean cleanupHaData) {
@@ -695,6 +711,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
      * @param applicationStatus to terminate the application with
      * @param shutdownBehaviour shutdown behaviour
      * @param diagnostics additional information about the shut down, can be {@code null}
+     *
      * @return Future which is completed once the shut down
      */
     private CompletableFuture<Void> closeClusterComponent(
@@ -720,6 +737,7 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
      * Clean up of temporary directories created by the {@link ClusterEntrypoint}.
      *
      * @param shutdownBehaviour specifying the shutdown behaviour
+     *
      * @throws IOException if the temporary directories could not be cleaned up
      */
     protected void cleanupDirectories(ShutdownBehaviour shutdownBehaviour) throws IOException {
@@ -759,8 +777,8 @@ public abstract class ClusterEntrypoint implements AutoCloseableAsync, FatalErro
     // --------------------------------------------------
 
     protected abstract DispatcherResourceManagerComponentFactory
-            createDispatcherResourceManagerComponentFactory(Configuration configuration)
-                    throws IOException;
+    createDispatcherResourceManagerComponentFactory(Configuration configuration)
+            throws IOException;
 
     protected abstract ExecutionGraphInfoStore createSerializableExecutionGraphStore(
             Configuration configuration, ScheduledExecutor scheduledExecutor) throws IOException;

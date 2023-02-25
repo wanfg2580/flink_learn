@@ -78,11 +78,15 @@ public final class JobSubmitHandler
         this.configuration = configuration;
     }
 
+    /**
+     * 接收客户端的请求（SubmitJob）
+     */
     @Override
     protected CompletableFuture<JobSubmitResponseBody> handleRequest(
             @Nonnull HandlerRequest<JobSubmitRequestBody> request,
             @Nonnull DispatcherGateway gateway)
             throws RestHandlerException {
+        // 从请求中获取文件： 包含 JobGraph 序列化文件
         final Collection<File> uploadedFiles = request.getUploadedFiles();
         final Map<String, Path> nameToFile =
                 uploadedFiles.stream()
@@ -108,18 +112,26 @@ public final class JobSubmitHandler
                     HttpResponseStatus.BAD_REQUEST);
         }
 
+        /**
+         *  恢复得到 JobGraph
+         *  服务端接收到客户端提交的，其实就是一个 JobGraph
+         *  到此为止：客户端终于把 JobGraph 提交给 JobManager 了。 最终由 JobSubmitHandler 来执行处理
+         */
         CompletableFuture<JobGraph> jobGraphFuture = loadJobGraph(requestBody, nameToFile);
 
+        // 得到 jar
         Collection<Path> jarFiles = getJarFilesToUpload(requestBody.jarFileNames, nameToFile);
-
+        // 获取 依赖 jar
         Collection<Tuple2<String, Path>> artifacts =
                 getArtifactFilesToUpload(requestBody.artifactFileNames, nameToFile);
-
+        // 上传： JobGraph + 程序jar + 依赖 jar 到 hdfs
         CompletableFuture<JobGraph> finalizedJobGraphFuture =
                 uploadJobGraphFiles(gateway, jobGraphFuture, jarFiles, artifacts, configuration);
-
+        // 提交任务
         CompletableFuture<Acknowledge> jobSubmissionFuture =
                 finalizedJobGraphFuture.thenCompose(
+                        // gateway = Dispatcher
+                        // Flink 集群主节点： JobManager(ResourceManager,  WebMonitorEndpoint,  Dsipatcher)
                         jobGraph -> gateway.submitJob(jobGraph, timeout));
 
         return jobSubmissionFuture.thenCombine(

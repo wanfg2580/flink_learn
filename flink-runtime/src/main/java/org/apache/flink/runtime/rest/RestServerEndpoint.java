@@ -177,6 +177,7 @@ public abstract class RestServerEndpoint implements RestService {
             final Router router = new Router();
             final CompletableFuture<String> restAddressFuture = new CompletableFuture<>();
 
+            // 初始化各种 Handler，包括：JobSubmitHander（处理job提交）
             handlers = initializeHandlers(restAddressFuture);
 
             /* sort the handlers such that they are ordered the following:
@@ -190,7 +191,9 @@ public abstract class RestServerEndpoint implements RestService {
 
             checkAllEndpointsAndHandlersAreUnique(handlers);
             handlers.forEach(handler -> registerHandler(router, handler, log));
-
+            /**
+             *  启动 Netty 服务端
+             */
             ChannelInitializer<SocketChannel> initializer =
                     new ChannelInitializer<SocketChannel>() {
 
@@ -239,6 +242,7 @@ public abstract class RestServerEndpoint implements RestService {
                     new NioEventLoopGroup(
                             0, new ExecutorThreadFactory("flink-rest-server-netty-worker"));
 
+            // 启动 Netty 网络通信 服务端引导程序
             bootstrap = new ServerBootstrap();
             bootstrap
                     .group(bossGroup, workerGroup)
@@ -302,7 +306,10 @@ public abstract class RestServerEndpoint implements RestService {
             restAddressFuture.complete(restBaseUrl);
 
             state = State.RUNNING;
-
+            /**
+             *  到此为止，我们的 主节点上的 WebMonitorEndpoint 组件的 Netty 服务端起好了。
+             *  任务提交的时候： 启动 Netty 的客户端
+             */
             startInternal();
         }
     }

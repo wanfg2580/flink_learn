@@ -83,6 +83,7 @@ public class DefaultLeaderElectionService
         synchronized (lock) {
             running = true;
             leaderContender = contender;
+            // 创建 leaderElectionDriver
             leaderElectionDriver =
                     leaderElectionDriverFactory.createLeaderElectionDriver(
                             this,
@@ -200,7 +201,7 @@ public class DefaultLeaderElectionService
                             leaderContender.getDescription(),
                             issuedLeaderSessionID);
                 }
-
+                // 启动 leader 的 resourceManager 和 dispatcher
                 leaderContender.grantLeadership(issuedLeaderSessionID);
             } else {
                 if (LOG.isDebugEnabled()) {
