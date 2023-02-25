@@ -234,10 +234,15 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     //  RPC lifecycle methods
     // ------------------------------------------------------------------------
 
+    /**
+     * ResourceManager 已实例化，开始初始化
+     * @throws Exception
+     */
     @Override
     public final void onStart() throws Exception {
         try {
             log.info("Starting the resource manager.");
+            // 启动
             startResourceManagerServices();
             startedFuture.complete(null);
         } catch (Throwable t) {
@@ -255,9 +260,20 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             jobLeaderIdService.start(new JobLeaderIdActionsImpl());
 
             registerMetrics();
-
+            /**
+             * 启动两个心跳管理器，分别关心 taskMangegr 和 jobManager 状态
+             * flink 心跳机制中，为主节点发送给给从节点，从节点接收到心跳返回响应
+             * 1. taskManagerHeartbeatManager
+             * 2. jobManagerHeartbeatManager
+             */
             startHeartbeatServices();
 
+            /**
+             * 启动 SlotManager
+             * 1. FineGrainedSlotManager 细粒度 slot 管理，可以划分内存大小不一样的 slot
+             * 2. DeclarativeSlotManager 声明式 slot 管理
+             * flink 1.14开始支持细粒度 slot 管理
+             */
             slotManager.start(
                     getFencingToken(),
                     getMainThreadExecutor(),

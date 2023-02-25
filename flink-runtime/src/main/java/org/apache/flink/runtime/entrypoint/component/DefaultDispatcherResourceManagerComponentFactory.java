@@ -183,29 +183,13 @@ public class DefaultDispatcherResourceManagerComponentFactory
             log.debug("Starting Dispatcher REST endpoint.");
             /**
              * 启动 webMonitorEndpoint，即启动 DispatcherRestEndpoint
-             * 1. 启动 Netty 客户端
-             * 2. 选举
+             * 1. 初始化 handler，启动 Netty 客户端
+             * 2. 选举，选举成功后触发 grantLeadership 确认信息
              * 3. 启动定时任务 ExecutionGraphCacheCleanupTask
              */
             webMonitorEndpoint.start();
 
             final String hostname = RpcUtils.getHostname(rpcService);
-            // 创建 resourceManagerService
-            resourceManagerService =
-                    ResourceManagerServiceImpl.create(
-                            resourceManagerFactory,
-                            configuration,
-                            resourceId,
-                            rpcService,
-                            highAvailabilityServices,
-                            heartbeatServices,
-                            delegationTokenManager,
-                            fatalErrorHandler,
-                            new ClusterInformation(hostname, blobServer.getPort()),
-                            webMonitorEndpoint.getRestBaseUrl(),
-                            metricRegistry,
-                            hostname,
-                            ioExecutor);
 
             final HistoryServerArchivist historyServerArchivist =
                     HistoryServerArchivist.createHistoryServerArchivist(
@@ -233,7 +217,18 @@ public class DefaultDispatcherResourceManagerComponentFactory
                             dispatcherOperationCaches);
 
             log.debug("Starting Dispatcher.");
-            // 创建 dispatcher
+            /**
+             * 创建 dispatcherRunner，内部创建和启动 dispatcher
+             * 1. 创建 DispatcherRunnerLeaderElectionLifecycleManager
+             * 2. dispatcher 选举
+             * 3. 选举成功后调用 DefaultMultipleComponentLeaderElectionService isLeader
+             * 4. isLeader 调用 resourceManagerServiceImpl grantLeadership 最终触发 DefaultDispatcherRunner grantLeadership
+             * 5. 创建 DispatcherLeaderProcess，然后调用 DispatcherLeaderProcess start 启动
+             * 6. 调用 SessionDispatcherLeaderProcess onStart
+             * 7. 创建 StandaloneDispatcher ，最终调用 dispatcher.start 启动
+             * 5. dispatcher.start 调用父类 RpcEndpoint.start，发送akka启动消息
+             * 6. dispatcher 接收 启动消息，执行 Dispatcher onStart 方法启动
+             */
             dispatcherRunner =
                     dispatcherRunnerFactory.createDispatcherRunner(
                             highAvailabilityServices.getDispatcherLeaderElectionService(),
@@ -243,11 +238,31 @@ public class DefaultDispatcherResourceManagerComponentFactory
                             rpcService,
                             partialDispatcherServices);
 
+            // 创建 resourceManagerService
+            resourceManagerService =
+                    ResourceManagerServiceImpl.create(
+                            resourceManagerFactory,
+                            configuration,
+                            resourceId,
+                            rpcService,
+                            highAvailabilityServices,
+                            heartbeatServices,
+                            delegationTokenManager,
+                            fatalErrorHandler,
+                            new ClusterInformation(hostname, blobServer.getPort()),
+                            webMonitorEndpoint.getRestBaseUrl(),
+                            metricRegistry,
+                            hostname,
+                            ioExecutor);
             log.debug("Starting ResourceManagerService.");
             /**
              * 启动 resourceManagerService
              * 1. resourceManager 选举
-             * 2. 选举成功后调用 leader.isLeader 启动 resourceManager
+             * 2. 选举成功后调用 DefaultMultipleComponentLeaderElectionService isLeader
+             * 3. isLeader 调用 resourceManagerServiceImpl grantLeadership 最终触发 new resourceManager()，最终 调用父类 RpcEndpoint 启动 RPC 服务器
+             * 4. resourceManagerServiceImpl 创建完 resourceManager 后，最终调用 resourceManager.start
+             * 5. resourceManager.start 调用父类 RpcEndpoint.start，发送akka启动消息
+             * 6. resourceManager 接收 启动消息，执行 resourceManager onStart 方法启动
              */
             resourceManagerService.start();
 

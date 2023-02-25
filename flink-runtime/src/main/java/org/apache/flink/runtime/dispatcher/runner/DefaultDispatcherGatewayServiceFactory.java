@@ -62,6 +62,7 @@ class DefaultDispatcherGatewayServiceFactory
 
         final Dispatcher dispatcher;
         try {
+            // SessionDispatcherFactory
             dispatcher =
                     dispatcherFactory.createDispatcher(
                             rpcService,

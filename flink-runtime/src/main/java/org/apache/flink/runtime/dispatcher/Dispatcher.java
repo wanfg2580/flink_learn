@@ -295,6 +295,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
     @Override
     public void onStart() throws Exception {
         try {
+            /**
+             * 启动 dispatcher 服务
+             */
             startDispatcherServices();
         } catch (Throwable t) {
             final DispatcherException exception =
@@ -305,6 +308,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
         }
 
         startCleanupRetries();
+        /**
+         * 把所有中断的 job 恢复执行
+         */
         startRecoveredJobs();
 
         this.dispatcherBootstrap =
@@ -316,6 +322,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     private void startDispatcherServices() throws Exception {
         try {
+            /**
+             * 性能监控
+             */
             registerDispatcherMetrics(jobManagerMetricGroup);
         } catch (Exception e) {
             handleStartDispatcherServicesException(e);
@@ -343,6 +352,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     private void startRecoveredJobs() {
         for (JobGraph recoveredJob : recoveredJobs) {
+            /**
+             * 恢复执行 待恢复的 job，最终通过 dispatcher runJob 执行
+             */
             runRecoveredJob(recoveredJob);
         }
         recoveredJobs.clear();
@@ -593,6 +605,9 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     private void runJob(JobManagerRunner jobManagerRunner, ExecutionType executionType)
             throws Exception {
+        /**
+         * 启动 jobManagerRunner：进行资源申请，任务执行
+         */
         jobManagerRunner.start();
         jobManagerRunnerRegistry.register(jobManagerRunner);
 

@@ -58,6 +58,7 @@ public class DefaultDispatcherRunnerFactory implements DispatcherRunnerFactory {
                         partialDispatcherServices,
                         fatalErrorHandler);
 
+        // 返回 DefaultDispatcherRunner
         return DefaultDispatcherRunner.create(
                 leaderElectionService, fatalErrorHandler, dispatcherLeaderProcessFactory);
     }

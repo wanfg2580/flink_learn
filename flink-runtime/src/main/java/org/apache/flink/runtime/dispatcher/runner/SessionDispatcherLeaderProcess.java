@@ -81,6 +81,9 @@ public class SessionDispatcherLeaderProcess extends AbstractDispatcherLeaderProc
 
     @Override
     protected void onStart() {
+        /**
+         * 启动 JobGraphStore，用来存储 JobGGraph 的存储组件
+         */
         startServices();
 
         onGoingRecoveryOperation =
