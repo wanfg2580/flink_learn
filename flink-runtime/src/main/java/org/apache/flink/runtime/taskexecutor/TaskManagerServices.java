@@ -276,22 +276,39 @@ public class TaskManagerServices {
             throws Exception {
 
         // pre-start checks
+        // 检查工作目录
         checkTempDirs(taskManagerServicesConfiguration.getTmpDirPaths());
-
+        /**
+         * 初始化 TaskEventDispatcher
+         * Flink 运行的是流式任务：StreamTask (OperatorChain pipline模式)，处理任务调度相关的工作
+         */
         final TaskEventDispatcher taskEventDispatcher = new TaskEventDispatcher();
 
         // start the I/O manager, it will create some temp directories.
+        /**
+         * 初始化 IOManagerAsync
+         */
         final IOManager ioManager =
                 new IOManagerAsync(taskManagerServicesConfiguration.getTmpDirPaths());
 
+        /**
+         * shuffleEnvironment = NettyShuffleEnvironment
+         * 上游 StreamTask 和 下游 StreamTask 有 shuffle 动作
+         * 在这个过程中，需要很多组件服务，NettyShuffleEnvironment 为 将来 shuffle 提供组件支撑
+         * 例如：写数据 writer 组件
+         */
         final ShuffleEnvironment<?, ?> shuffleEnvironment =
                 createShuffleEnvironment(
                         taskManagerServicesConfiguration,
                         taskEventDispatcher,
                         taskManagerMetricGroup,
                         ioExecutor);
+        /**
+         * 启动 netty 服务端与 netty 客户端，负责io
+         */
         final int listeningDataPort = shuffleEnvironment.start();
 
+        // 负责状态管理
         final KvStateService kvStateService =
                 KvStateService.fromConfiguration(taskManagerServicesConfiguration);
         kvStateService.start();
@@ -306,9 +323,14 @@ public class TaskManagerServices {
                                 ? taskManagerServicesConfiguration.getExternalDataPort()
                                 : listeningDataPort,
                         taskManagerServicesConfiguration.getNodeId());
-
+        // 广播服务，将广播变量广播到 task
         final BroadcastVariableManager broadcastVariableManager = new BroadcastVariableManager();
 
+        /**
+         * 初始化 TaskSlotTable = TaskSlotTableImpl
+         * 管理节点的 slot 和 task 映射关系
+         * 当前节点提供很多 slot，执行很多 task，这里通过一张表管理
+         */
         final TaskSlotTable<Task> taskSlotTable =
                 createTaskSlotTable(
                         taskManagerServicesConfiguration.getNumberOfSlots(),
@@ -316,9 +338,15 @@ public class TaskManagerServices {
                         taskManagerServicesConfiguration.getTimerServiceShutdownTimeout(),
                         taskManagerServicesConfiguration.getPageSize(),
                         ioExecutor);
-
+        /**
+         * 初始化 JobTable = DefaultJobTable
+         * job信息存储
+         */
         final JobTable jobTable = DefaultJobTable.create();
 
+        /**
+         * 初始化 JobLeaderService 为 JobMaster 启动做准备
+         */
         final JobLeaderService jobLeaderService =
                 new DefaultJobLeaderService(
                         unresolvedTaskManagerLocation,
@@ -362,6 +390,7 @@ public class TaskManagerServices {
                     NoOpSlotAllocationSnapshotPersistenceService.INSTANCE;
         }
 
+        // 上面初始化的服务组件，封装到 TaskManagerServices 进行管理
         return new TaskManagerServices(
                 unresolvedTaskManagerLocation,
                 taskManagerServicesConfiguration.getManagedMemorySize().getBytes(),

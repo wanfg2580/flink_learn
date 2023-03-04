@@ -968,14 +968,16 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
     /**
      * Registers a new TaskExecutor.
-     *
+     * 主节点 ResourceManager 接收到注册信息后处理
      * @param taskExecutorRegistration task executor registration parameters
      * @return RegistrationResponse
      */
     private RegistrationResponse registerTaskExecutorInternal(
             TaskExecutorGateway taskExecutorGateway,
             TaskExecutorRegistration taskExecutorRegistration) {
+        // 获取从节点 id
         ResourceID taskExecutorResourceId = taskExecutorRegistration.getResourceId();
+        // 移除旧有信息
         WorkerRegistration<WorkerType> oldRegistration =
                 taskExecutors.remove(taskExecutorResourceId);
         if (oldRegistration != null) {
@@ -1021,8 +1023,9 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                     "Registering TaskManager with ResourceID {} ({}) at ResourceManager",
                     taskExecutorResourceId.getStringWithMetadata(),
                     taskExecutorAddress);
+            // 保存新注册的 taskExecutor 到 map 缓存中
             taskExecutors.put(taskExecutorResourceId, registration);
-
+            // 通过心跳管理服务 维持心跳, TaskExecutorHeartbeatSender requestHeartbeat
             taskManagerHeartbeatManager.monitorTarget(
                     taskExecutorResourceId, new TaskExecutorHeartbeatSender(taskExecutorGateway));
 
@@ -1338,6 +1341,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
         @Override
         public CompletableFuture<Void> requestHeartbeat(ResourceID resourceID, Void payload) {
+            // rpc 调用 taskExecutor
             return taskExecutorGateway.heartbeatFromResourceManager(resourceID);
         }
     }

@@ -82,6 +82,14 @@ public class NettyConnectionManager implements ConnectionManager {
                         checkNotNull(partitionProvider), checkNotNull(taskEventPublisher));
     }
 
+    /**
+     * 1. 启动了一个 Netty 客户端：发送数据到下游
+     * 2. 启动了一个 Netty 服务端：接收上游传输的数据
+     * 数据流：
+     * StreamTask(20) ---> StreamTask(20) ---> StreamTask(12)
+     * @return
+     * @throws IOException
+     */
     @Override
     public int start() throws IOException {
         client.init(nettyProtocol, bufferPool);

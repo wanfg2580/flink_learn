@@ -56,7 +56,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-/** Default implementation of {@link TaskSlotTable}. */
+/** Default implementation of {@link TaskSlotTable}.
+ * 维护 这个 TM 上所有的 TaskSlot 和 task 、job 的挂西
+ * TaskSlot 在进行 allocate/free 操作，通过 TimeService 超时检测
+ *
+ * 当一个 slot 被调度执行一个 task，会生成一个 TaskSlot 对象
+ *
+ * SlotManger 在主节点启动时已启动
+ */
 public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTable<T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(TaskSlotTableImpl.class);

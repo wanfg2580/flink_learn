@@ -87,6 +87,7 @@ public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
             throws Exception {
         this.client = checkNotNull(client, "CuratorFramework client");
         this.connectionInformationPath = ZooKeeperUtils.generateConnectionInformationPath(path);
+        // 添加 retrieveLeaderInformationFromZooKeeper 节点变更通知
         this.cache =
                 ZooKeeperUtils.createTreeCache(
                         client,
@@ -161,6 +162,7 @@ public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
             case RECONNECTED:
                 LOG.info(
                         "Connection to ZooKeeper was reconnected. Leader retrieval can be restarted.");
+                // 通知leader 地址
                 onReconnectedConnectionState();
                 break;
             case LOST:

@@ -326,6 +326,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
         final ResourceID resourceId =
                 taskExecutorServices.getUnresolvedTaskManagerLocation().getResourceID();
+        // 从心跳服务中创建jobManager 和 resourceManager 心跳管理器
         this.jobManagerHeartbeatManager =
                 createJobManagerHeartbeatManager(heartbeatServices, resourceId);
         this.resourceManagerHeartbeatManager =
@@ -401,6 +402,13 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     @Override
     public void onStart() throws Exception {
         try {
+            /**
+             *  开启服务
+             *  1. 连接 ResourceManager
+             *  2. 启动 TaskSlotTable 服务
+             *  3. 监控 JobMaster
+             *  4. 启动 FileCache 服务
+             */
             startTaskExecutorServices();
         } catch (Throwable t) {
             final TaskManagerException exception =
@@ -410,18 +418,33 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             throw exception;
         }
 
+        /**
+         * 启动超时检查
+         */
         startRegistrationTimeout();
     }
 
     private void startTaskExecutorServices() throws Exception {
         try {
             // start by connecting to the ResourceManager
+            /**
+             * 1. 启动监听，new ResourceManagerLeaderListener() 监听 ResourceManager，
+             *          如果有新的 leader，回调 notifyLeaderAddress 触发与 ResourceManager 重连
+             *    一般分布式服务 从节点注册到主节点流程
+             *    1. 主节点启动注册服务
+             *    2. 从节点启动
+             *    3. 从节点封装自己信息，通过 RPC 发送给 主节点
+             *    4. 主节点处理注册，给从节点分配全局唯一 ID（从节点启动时已生成）
+             *          再将注册对象映射关系保存在主节点内存中
+             *    5. HBase 除了注册，还会吧自己的信息保存在 zk 中
+             */
             resourceManagerLeaderRetriever.start(new ResourceManagerLeaderListener());
 
             // tell the task slot table who's responsible for the task slot actions
             taskSlotTable.start(new SlotActionsImpl(), getMainThreadExecutor());
 
             // start the job leader service
+            // 启动 JobMaster 监控
             jobLeaderService.start(
                     getAddress(), getRpcService(), haServices, new JobLeaderListenerImpl());
 
@@ -961,6 +984,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
     @Override
     public CompletableFuture<Void> heartbeatFromResourceManager(ResourceID resourceID) {
+        // taskExecutor 汇报心跳
         return resourceManagerHeartbeatManager.requestHeartbeat(resourceID, null);
     }
 
@@ -1342,8 +1366,11 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     }
 
     private void reconnectToResourceManager(Exception cause) {
+        // 关闭原有连接
         closeResourceManagerConnection(cause);
+        // 启动超时管理，如果超时时间内未注册成功，则超时；延时调度
         startRegistrationTimeout();
+        // 连接新的 ResourceManager
         tryConnectToResourceManager();
     }
 

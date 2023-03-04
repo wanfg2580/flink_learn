@@ -123,8 +123,9 @@ public class HeartbeatServices {
      * @return An HeartbeatServices instance created from the given configuration
      */
     public static HeartbeatServices fromConfiguration(Configuration configuration) {
+        // 心跳间隔时间 10s
         long heartbeatInterval = configuration.getLong(HeartbeatManagerOptions.HEARTBEAT_INTERVAL);
-
+        // 心跳超时时间 50s
         long heartbeatTimeout = configuration.getLong(HeartbeatManagerOptions.HEARTBEAT_TIMEOUT);
 
         int failedRpcRequestsUntilUnreachable =

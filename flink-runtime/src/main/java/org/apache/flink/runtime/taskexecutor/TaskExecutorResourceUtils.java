@@ -77,9 +77,13 @@ public class TaskExecutorResourceUtils {
         }
         return new TaskExecutorResourceSpec(
                 new CPUResource(config.getDouble(TaskManagerOptions.CPU_CORES)),
+                // 堆内存
                 config.get(TaskManagerOptions.TASK_HEAP_MEMORY),
+                // 堆外内存
                 config.get(TaskManagerOptions.TASK_OFF_HEAP_MEMORY),
+                // 网络内存
                 config.get(TaskManagerOptions.NETWORK_MEMORY_MIN),
+                // taskmanager 管理的内存
                 config.get(TaskManagerOptions.MANAGED_MEMORY_SIZE),
                 ExternalResourceUtils.getExternalResourcesCollection(config));
     }

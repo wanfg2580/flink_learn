@@ -137,6 +137,7 @@ public class HeartbeatMonitorImpl<O> implements HeartbeatMonitor<O>, Runnable {
     @Override
     public void reportHeartbeat() {
         lastHeartbeat = System.currentTimeMillis();
+        // 重置注册超时时间
         resetHeartbeatTimeout(heartbeatTimeoutIntervalMs);
     }
 
@@ -160,6 +161,13 @@ public class HeartbeatMonitorImpl<O> implements HeartbeatMonitor<O>, Runnable {
         return state.get() == State.CANCELED;
     }
 
+    /**
+     * 1. 首先启动 RM ，启动 HeartbeatManager，遍历map 发送心跳
+     * 2. 启动 TaskExecutor，首先启动超时检查服务，启动好了后，进行注册
+     * 3. 注册成功，接收到心跳请求，相当于 RM 和 TE 建立了链接，注册成功
+     * 4. TaskExecutor 每次接收到心跳后，会重置 超时检查服务
+     * @param heartbeatTimeout
+     */
     void resetHeartbeatTimeout(long heartbeatTimeout) {
         if (state.get() == State.RUNNING) {
             cancelTimeout();

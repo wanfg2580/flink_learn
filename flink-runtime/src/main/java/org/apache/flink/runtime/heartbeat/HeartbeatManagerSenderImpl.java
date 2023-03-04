@@ -85,11 +85,15 @@ public class HeartbeatManagerSenderImpl<I, O> extends HeartbeatManagerImpl<I, O>
             for (HeartbeatMonitor<O> heartbeatMonitor : getHeartbeatTargets().values()) {
                 requestHeartbeat(heartbeatMonitor);
             }
-
+            // 循环发送心跳，默认 10 s 发送一次，超时 50s
             getMainThreadExecutor().schedule(this, heartbeatPeriod, TimeUnit.MILLISECONDS);
         }
     }
 
+    /**
+     * 遍历发送心跳
+     * @param heartbeatMonitor
+     */
     private void requestHeartbeat(HeartbeatMonitor<O> heartbeatMonitor) {
         O payload = getHeartbeatListener().retrievePayload(heartbeatMonitor.getHeartbeatTargetId());
         final HeartbeatTarget<O> heartbeatTarget = heartbeatMonitor.getHeartbeatTarget();

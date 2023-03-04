@@ -34,6 +34,8 @@ import java.util.Map;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
+ * TaskEventDispatcher 负责从消费Task 发送 Task消费结果 给 上游生产Task
+ * 任务事件分派器从 消耗任务端 向产生 消耗结果的任务倒流的事件
  * The task event dispatcher dispatches events flowing backwards from a consuming task to the task
  * producing the consumed result.
  *

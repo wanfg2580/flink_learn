@@ -1150,9 +1150,15 @@ public class CliFrontend {
         EnvironmentInformation.logEnvironmentInfo(LOG, "Command Line Client", args);
 
         // 1. find the configuration directory
+        /**
+         * 通过 FLINK_CONF_DIR 找到 conf 目录
+         */
         final String configurationDirectory = getConfigurationDirectoryFromEnv();
 
         // 2. load the global configuration
+        /**
+         * 解析 conf 目录下的 flink-conf.yaml 配置文件
+         */
         final Configuration configuration =
                 GlobalConfiguration.loadConfiguration(configurationDirectory);
 
@@ -1162,9 +1168,11 @@ public class CliFrontend {
 
         int retCode = 31;
         try {
+            // 初始化 CliFrontennd
             final CliFrontend cli = new CliFrontend(configuration, customCommandLines);
 
             SecurityUtils.install(new SecurityConfiguration(cli.configuration));
+            // 解析命令行
             retCode = SecurityUtils.getInstalledContext().runSecured(() -> cli.parseAndRun(args));
         } catch (Throwable t) {
             final Throwable strippedThrowable =

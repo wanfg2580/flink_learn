@@ -149,7 +149,17 @@ public class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
                                 heartbeatListener,
                                 heartbeatTimeoutIntervalMs,
                                 failedRpcRequestsUntilUnreachable);
-
+                /**
+                 * 一个 ResourceManager 对应一个 HeartbeatMonitor，保存在 heartbeatTargets 中
+                 *
+                 * heartbeatTargets map中管理
+                 * key：TaskExecuter id
+                 * value: heartbeatMonitor 包装 heartbeatTarget，
+                 * heartbeatTarget 封装 receiveHeartbeat、 requestHeartBeat 方法
+                 *
+                 *
+                 * HeartbeatMonitor 会被  HeartbeatManagerSenderImpl 定时调度，遍历 heartbeatTargets 发送心跳
+                 */
                 heartbeatTargets.put(resourceID, heartbeatMonitor);
 
                 // check if we have stopped in the meantime (concurrent stop operation)
