@@ -519,7 +519,7 @@ public class StreamGraph implements Pipeline {
         if (streamNodes.containsKey(vertexID)) {
             throw new RuntimeException("Duplicate vertexID " + vertexID);
         }
-
+        // 生成一个 StreamNode
         StreamNode vertex =
                 new StreamNode(
                         vertexID,
@@ -528,7 +528,7 @@ public class StreamGraph implements Pipeline {
                         operatorFactory,
                         operatorName,
                         vertexClass);
-
+        // 添加一个 StreamNode
         streamNodes.put(vertexID, vertex);
 
         return vertex;
@@ -1014,6 +1014,9 @@ public class StreamGraph implements Pipeline {
 
     /** Gets the assembled {@link JobGraph} with a specified {@link JobID}. */
     public JobGraph getJobGraph(ClassLoader userClassLoader, @Nullable JobID jobID) {
+        /**
+         *  根据 StreamGraph 通过 StreamingJobGraphGenerator 来创建一个 JobGragh
+         */
         return StreamingJobGraphGenerator.createJobGraph(userClassLoader, this, jobID);
     }
 

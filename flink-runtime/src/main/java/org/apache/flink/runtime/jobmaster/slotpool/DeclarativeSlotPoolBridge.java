@@ -306,11 +306,17 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
                 "Request new allocated batch slot with slot request id {} and resource profile {}",
                 slotRequestId,
                 resourceProfile);
-
+        /**
+         *  注释： 创建请求，PendingRequest 延迟请求
+         *  1. 假设你来申请 slot，刚好没有了。如果启动的是 FLink Standalone 集群
+         *		你只能等
+         *  2. 假设你来申请 slot，刚好没有了。如果启动的是集群模式
+         *  	动态slot管理的概念： TaskExecutor 太少： 重新申请一个 container，启动 TaskExecutor，再抽象出来几个 slot
+         */
         final PendingRequest pendingRequest =
                 PendingRequest.createBatchRequest(
                         slotRequestId, resourceProfile, preferredAllocations);
-
+        // 发送给 ResourceManager
         return internalRequestNewSlot(pendingRequest, null);
     }
 

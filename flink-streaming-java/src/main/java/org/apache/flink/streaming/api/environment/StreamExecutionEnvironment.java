@@ -1946,7 +1946,16 @@ public class StreamExecutionEnvironment implements AutoCloseable {
 
         clean(function);
 
+        // 构建 SourceOperator
         final StreamSource<OUT, ?> sourceOperator = new StreamSource<>(function);
+        /**
+         * 返回 DataStreamSource，其有四种抽象
+         * 1. DataStream
+         * 2. KeyedDataStream
+         * 3. DataStreamSource
+         * 4. DataStreamSink
+         */
+
         return new DataStreamSource<>(
                 this, resolvedTypeInfo, sourceOperator, isParallel, sourceName, boundedness);
     }
@@ -2039,13 +2048,16 @@ public class StreamExecutionEnvironment implements AutoCloseable {
      * @throws Exception which occurs during job execution.
      */
     public JobExecutionResult execute(String jobName) throws Exception {
+        // 转换 flatMap process 等阶段生成的 transformations
         final List<Transformation<?>> originalTransformations = new ArrayList<>(transformations);
+        // 1. 获取 StreamGraph
         StreamGraph streamGraph = getStreamGraph();
         if (jobName != null) {
             streamGraph.setJobName(jobName);
         }
 
         try {
+            // 2. 提交 streamGraph 去执行
             return execute(streamGraph);
         } catch (Throwable t) {
             Optional<ClusterDatasetCorruptedException> clusterDatasetCorruptedException =
@@ -2236,6 +2248,7 @@ public class StreamExecutionEnvironment implements AutoCloseable {
 
     private StreamGraph getStreamGraph(List<Transformation<?>> transformations) {
         synchronizeClusterDatasetStatus();
+        // generate 方法生成 StreamGraph
         return getStreamGraphGenerator(transformations).generate();
     }
 
@@ -2703,7 +2716,9 @@ public class StreamExecutionEnvironment implements AutoCloseable {
         checkNotNull(
                 configuration.get(DeploymentOptions.TARGET),
                 "No execution.target specified in your configuration file.");
-
+        /**
+         *  1、executorServiceLoader = DefaultExecutorServiceLoader
+         */
         final PipelineExecutorFactory executorFactory =
                 executorServiceLoader.getExecutorFactory(configuration);
 

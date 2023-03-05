@@ -265,12 +265,28 @@ public class SingleInputGate extends IndexedInputGate {
         return inputChannelsWithData;
     }
 
+    /**
+     *  Buffer  MemorySegment
+     *  流式计算引擎： 上游Task执行完毕一条数据的计算之后，就会发送这条数据的计算结果给下游Task
+     *  到底怎么给，规则是由  StreamPartitioiner 来指定的
+     *  一条数据在一个Task 执行完毕之后，就要发送给下游个另外一个Task
+     *  这个过程，这个网络数据传输过程，是由 Netty 支持的，具体是由 IntputChannel 实现
+     *  Buffer Channel
+     */
     @Override
     public void setup() throws IOException {
         checkState(
                 this.bufferPool == null,
                 "Bug in input gate setup logic: Already registered buffer pool.");
 
+        /**
+         *  注释： 设置 BufferPool
+         *  内存管理有关！
+         *  1、在海量数据处理中JVM 的堆内存的管理方式有很大的缺陷：
+         *      a. 数据密度不高，每次从堆内存中申请的不是一个 32kb 的 MemorySegement
+         *      b. 对象生命周期比较短的话，会频繁GC
+         *  2、BufferPool 就是管理 MemorySegement 的
+         */
         BufferPool bufferPool = bufferPoolFactory.get();
         setBufferPool(bufferPool);
 

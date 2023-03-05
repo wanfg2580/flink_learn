@@ -541,6 +541,7 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     private CompletableFuture<Acknowledge> internalSubmitJob(JobGraph jobGraph) {
         log.info("Submitting job '{}' ({}).", jobGraph.getName(), jobGraph.getJobID());
+        // 提交执行 persistAndRunJob
         return waitForTerminatingJob(jobGraph.getJobID(), jobGraph, this::persistAndRunJob)
                 .handle((ignored, throwable) -> handleTermination(jobGraph.getJobID(), throwable))
                 .thenCompose(Function.identity());
@@ -577,11 +578,25 @@ public abstract class Dispatcher extends FencedRpcEndpoint<DispatcherId>
 
     private void persistAndRunJob(JobGraph jobGraph) throws Exception {
         jobGraphWriter.putJobGraph(jobGraph);
+        // 创建 JobMasterRunner
+        // 启动 JobMasterRunner
         runJob(createJobMasterRunner(jobGraph), ExecutionType.SUBMISSION);
     }
 
+    // 创建 jobManagerRunner
     private JobManagerRunner createJobMasterRunner(JobGraph jobGraph) throws Exception {
         Preconditions.checkState(!jobManagerRunnerRegistry.isRegistered(jobGraph.getJobID()));
+        /**
+         *  创建 JobManagerRunner
+         *  在这里面会做一件重要的事情：
+         *  1、创建 JobMaster 实例
+         *  2、在创建 JobMaster 的时候，同时会把 JobGraph 编程 ExecutionGraph
+         *  -
+         *  严格来说，是启动 JobMaster， 那么这个地方的名字，就应该最好叫做： createJobMasterRunner
+         *  Flink 集群的一两个主从架构：
+         *  1、资源管理：  ResourceManager + TaskExecutor
+         *  2、任务运行：  JobMaster + StreamTask
+         */
         return jobManagerRunnerFactory.createJobManagerRunner(
                 jobGraph,
                 configuration,

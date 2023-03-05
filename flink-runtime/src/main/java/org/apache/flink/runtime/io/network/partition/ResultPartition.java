@@ -159,6 +159,16 @@ public abstract class ResultPartition implements ResultPartitionWriter {
 
         this.bufferPool = checkNotNull(bufferPoolFactory.get());
         setupInternal();
+        /**
+         *  注册 ResultPartition 启动好了之后，会注册在 ResultPartitionWriter 中
+         *
+         *  partitionManager 负责这个 Task 之上的所有的数据的输出
+         *  当前这个 Task 输出的所有数据就被抽象成一个整体： ResultPartition
+         *  这个Task输出的数据有可能要被分发到下游的多个Task，就证明产出多个分区： ResultSubpartition
+         *  ResultPartition 包含多个 ResultSubpartition
+         *  -
+         *  TaskManager - TaskExecutor  - ResultPartitionManager（管理多个 ResultPartition）
+         */
         partitionManager.registerResultPartition(this);
     }
 

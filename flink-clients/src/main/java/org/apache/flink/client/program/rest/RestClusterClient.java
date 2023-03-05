@@ -318,6 +318,15 @@ public class RestClusterClient<T> implements ClusterClient<T> {
         return retry(operation, unknownJobStateRetryable);
     }
 
+    /*************************************************
+     *  先持久化： 把 JobGragh 持久化到磁盘文件形成 jobGraphFile
+     *  1、持久化 JobGragh 的前缀：flink-jobgraph
+     *  2、持久化 JobGragh 的后缀：.bin
+     *  当我们把 JobGraph 持久化了之后，变成了一个文件： jobGraphFile
+     *  然后其实，在提交 JobGraph 到 Flink 集群运行额时候，其实提交的就是：这个文件！
+     *  将来，最终是有 FLink 集群的 WebMonitor（JobSubmitHandler） 去接收请求来执行处理
+     *  JobSubmitHandler 在执行处理的第一件事情： 把传送过来的这个文件反序列化得到 JobGraph 这个对象
+     */
     @Override
     public CompletableFuture<JobID> submitJob(@Nonnull JobGraph jobGraph) {
         CompletableFuture<java.nio.file.Path> jobGraphFileFuture =
@@ -395,6 +404,7 @@ public class RestClusterClient<T> implements ClusterClient<T> {
                                     requestBody, Collections.unmodifiableCollection(filesToUpload));
                         });
 
+        // 提交 graph 文件到远程
         final CompletableFuture<JobSubmitResponseBody> submissionFuture =
                 requestFuture.thenCompose(
                         requestAndFileUploads -> {
@@ -923,7 +933,7 @@ public class RestClusterClient<T> implements ClusterClient<T> {
                     BiConsumer<String, Throwable> consumer) {
         return retry(
                 () ->
-                        getWebMonitorBaseUrl()
+                        getWebMonitorBaseUrl()// 获取JobManager web 服务地址
                                 .thenCompose(
                                         webMonitorBaseUrl -> {
                                             try {

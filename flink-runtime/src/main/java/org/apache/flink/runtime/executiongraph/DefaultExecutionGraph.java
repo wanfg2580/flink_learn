@@ -843,8 +843,9 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
                 verticesToAttach.size(),
                 tasks.size(),
                 intermediateResults.size());
-
+        // 生成 ExecutionJobVertex， 和JobGraph中的JobVertex一一对应
         attachJobVertices(verticesToAttach);
+        // 初始化生成 ExecutionVertex，表示ExecutionJobVertex的其中一个并发子任务
         initializeJobVertices(verticesToInitialize);
 
         // the topology assigning should happen before notifying new vertices to failoverStrategy
@@ -856,16 +857,18 @@ public class DefaultExecutionGraph implements ExecutionGraph, InternalExecutionG
 
     /** Attach job vertices without initializing them. */
     private void attachJobVertices(List<JobVertex> topologicallySorted) throws JobException {
+        // 遍历 jobVertex 执行 并行化图 生成
         for (JobVertex jobVertex : topologicallySorted) {
 
             if (jobVertex.isInputVertex() && !jobVertex.isStoppable()) {
                 this.isStoppable = false;
             }
-
+            // 获取并行度信息
             VertexParallelismInformation parallelismInfo =
                     parallelismStore.getParallelismInfo(jobVertex.getID());
 
             // create the execution job vertex and attach it to the graph
+            // 根据 jobVertex、并行度信息生成 ExecutionJobVertex
             ExecutionJobVertex ejv =
                     executionJobVertexFactory.createExecutionJobVertex(
                             this, jobVertex, parallelismInfo);

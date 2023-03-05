@@ -210,7 +210,9 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         log.info(
                 "Starting scheduling with scheduling strategy [{}]",
                 schedulingStrategy.getClass().getName());
+        // 标记任务状态为 RUNNING
         transitionToRunning();
+        // 最终调用到 allocateSlotsAndDeploy
         schedulingStrategy.startScheduling();
     }
 
@@ -443,7 +445,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 verticesToDeploy.stream()
                         .map(this::getCurrentExecutionOfVertex)
                         .collect(Collectors.toList());
-
+        //
         executionDeployer.allocateSlotsAndDeploy(executionsToDeploy, requiredVersionByVertex);
     }
 

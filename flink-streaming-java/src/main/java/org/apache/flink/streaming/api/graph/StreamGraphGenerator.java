@@ -306,6 +306,7 @@ public class StreamGraphGenerator {
     }
 
     public StreamGraph generate() {
+        // 初始化 StreamGraph
         streamGraph = new StreamGraph(executionConfig, checkpointConfig, savepointRestoreSettings);
         streamGraph.setEnableCheckpointsAfterTasksFinish(
                 configuration.get(
@@ -313,9 +314,16 @@ public class StreamGraphGenerator {
         shouldExecuteInBatchMode = shouldExecuteInBatchMode();
         configureStreamGraph(streamGraph);
 
+        // 存储已经转换过的 transformation
         alreadyTransformed = new IdentityHashMap<>();
-
+        /***
+         *  执行各种算子的 transformation： 由 算子 生成 Transformation 来构建 StreamGraph
+         *  在执行各种算子的时候，就已经把算子转换成对应的 Transformation 放入 transformations 集合中了
+         *  自底向上(先遍历 input transformations) 对转换树的每个 transformation 进行转换
+         */
         for (Transformation<?> transformation : transformations) {
+            // 从 Env 对象中，把 Transformation 拿出来，然后转换成 StreamNode
+            // Function --> Operator --> Transformation --> StreamNode
             transform(transformation);
         }
 
@@ -326,11 +334,15 @@ public class StreamGraphGenerator {
         for (StreamNode node : streamGraph.getStreamNodes()) {
             if (node.getInEdges().stream().anyMatch(this::shouldDisableUnalignedCheckpointing)) {
                 for (StreamEdge edge : node.getInEdges()) {
+                    // 为不需要checkpoint的节点加上标记
                     edge.setSupportsUnalignedCheckpoints(false);
                 }
             }
         }
 
+        /**
+		 * 把生成好的 StreamGragh 引用给返回对象，然后清空，保持当前这个 StreamGraphGenerator 依然是一个空的可再生利用
+         */
         final StreamGraph builtStreamGraph = streamGraph;
 
         alreadyTransformed.clear();
@@ -506,6 +518,7 @@ public class StreamGraphGenerator {
      * delegates to one of the transformation specific methods.
      */
     private Collection<Integer> transform(Transformation<?> transform) {
+        // 已经转换过的直接返回
         if (alreadyTransformed.containsKey(transform)) {
             return alreadyTransformed.get(transform);
         }
@@ -516,12 +529,14 @@ public class StreamGraphGenerator {
 
             // if the max parallelism hasn't been set, then first use the job wide max parallelism
             // from the ExecutionConfig.
+            // 设置并行度
             int globalMaxParallelismFromConfig = executionConfig.getMaxParallelism();
             if (globalMaxParallelismFromConfig > 0) {
                 transform.setMaxParallelism(globalMaxParallelismFromConfig);
             }
         }
 
+        // 获取共享 slot 的信息, 1.14 引进
         transform
                 .getSlotSharingGroup()
                 .ifPresent(
@@ -557,8 +572,10 @@ public class StreamGraphGenerator {
                 (TransformationTranslator<?, Transformation<?>>)
                         translatorMap.get(transform.getClass());
 
+        // transformedIds 为 StreamNode id 的结合
         Collection<Integer> transformedIds;
         if (translator != null) {
+            // 转化 transform
             transformedIds = translate(translator, transform);
         } else {
             transformedIds = legacyTransform(transform);

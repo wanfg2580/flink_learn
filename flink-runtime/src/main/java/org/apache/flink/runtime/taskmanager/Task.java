@@ -636,6 +636,14 @@ public class Task
 
             LOG.debug("Registering task at network: {}.", this);
 
+            /**
+             *   启动 ResultPartitionWriter 和 InputGate
+             *  向网络栈中注册 Task,为 ResultPartition 和 InputGate 分配缓冲池
+             *
+             *  在初始化 Task 的时候，就已经把  ResultPartition (输出) 和 InputGate（输入） 初始化了
+             *  原来在构造 Task 对象的时候，关于输入 和 输出的抽象对象，都已经创建完毕
+             *  其实就是初始化 BufferPool
+             */
             setupPartitionsAndGates(partitionWriters, inputGates);
 
             for (ResultPartitionWriter partitionWriter : partitionWriters) {
@@ -670,7 +678,7 @@ public class Task
 
             TaskKvStateRegistry kvStateRegistry =
                     kvStateService.createKvStateTaskRegistry(jobId, getJobVertexId());
-
+			//构建一个环境对象
             Environment env =
                     new RuntimeEnvironment(
                             jobId,
@@ -709,6 +717,14 @@ public class Task
             // monitored for system exit (in addition to invoking thread itself monitored below).
             FlinkSecurityManager.monitorUserSystemExitForCurrentThread();
             try {
+                /**
+                 *  获取到代码运行主类
+                 *  nameOfInvokableClass 是 JobVertex 的 invokableClassName， AbstractInvokable = invokable
+                 *  每一个 StreamNode 在添加的时候都会有一个 jobVertexClass 属性
+                 *  对于一个 operator chain，就是 head operator 对应的 invokableClassName，见 StreamingJobGraphGenerator.createChain
+                 *  通过反射创建 AbstractInvokable 对象
+                 *  对于 Stream 任务而言，就是 StreamTask 的子类，SourceStreamTask、OneInputStreamTask、TwoInputStreamTask 等
+                 */
                 // now load and instantiate the task's invokable code
                 invokable =
                         loadAndInstantiateInvokable(
@@ -725,6 +741,18 @@ public class Task
             // by the time we switched to running.
             this.invokable = invokable;
 
+            /**
+             *  运行任务， 在流式应用程序中，都是 StreamTask 的子类
+             *  -
+             *  AbstractInvokable 是 Task 执行的主要逻辑，也是所有被执行的任务的基类，包括 Streaming 模式和 Batch 模式。
+             *  在 Streaming 模式下，所有任务都继承自 StreamTask，
+             *  包括 StreamTask 的子类包括 SourceStreamTask, OneInputStreamTask, TwoInputStreamTask,
+             *  以及用于迭代模式下的 StreamIterationHead 和 StreamIterationTail。
+             *  -
+             *  每一个 StreamNode 在添加到 StreamGraph 的时候都会有一个关联的 jobVertexClass 属性，
+             *  这个属性就是该 StreamNode 对应的 StreamTask 类型；对于一个 OperatorChain 而言，它所对应的
+             *  StreamTask 就是其 head operator 对应的 StreamTask。
+             */
             restoreAndInvoke(invokable);
 
             // make sure, we enter the catch block if the task leaves the invoke() method due
@@ -942,10 +970,17 @@ public class Task
     public static void setupPartitionsAndGates(
             ResultPartitionWriter[] producedPartitions, InputGate[] inputGates) throws IOException {
 
+        /**
+         *  注册当前 Task 的 ResultPartition 到启动当前 Task 的 TaskManager
+         *  之上的用来跟踪管理 ResultPartition 的 ResultPartitionManager 之中
+         */
         for (ResultPartitionWriter partition : producedPartitions) {
             partition.setup();
         }
 
+        /**
+         *  为这个 Task 的 InputGate 中的 InputChannel 分配 BufferPool
+         */
         // InputGates must be initialized after the partitions, since during InputGate#setup
         // we are requesting partitions
         for (InputGate gate : inputGates) {

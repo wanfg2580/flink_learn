@@ -524,6 +524,10 @@ public class Execution
 
         // make sure exactly one deployment call happens from the correct state
         ExecutionState previous = this.state;
+        /**
+         * TODO_MA 马中华 https://blog.csdn.net/zhongqi2513
+         *  注释： 如果之前的状态是 SCHEDULED， 现在改成 DEPLOYING
+         */
         if (previous == SCHEDULED) {
             if (!transitionState(previous, DEPLOYING)) {
                 // race condition, someone else beat us to the deploying call.
@@ -545,7 +549,10 @@ public class Execution
         }
 
         try {
-
+            /**
+             *  只有当 状态为 DEPLOYING 的时候，才能执行
+             *  如果状态不是 DEPLOYING，则释放归还 Slot
+             */
             // race double check, did we fail/cancel and do we need to release the slot?
             if (this.state != DEPLOYING) {
                 slot.releaseSlot(
@@ -567,6 +574,10 @@ public class Execution
                     getAssignedResourceLocation(),
                     slot.getAllocationId());
 
+            /**
+             *  创建 TaskDeploymentDescriptor = tdd
+             *  调用 TaskDeploymentDescriptorFactory.fromExecution() 创建 DeploymentDescriptor 对象
+             */
             final TaskDeploymentDescriptor deployment =
                     TaskDeploymentDescriptorFactory.fromExecution(this)
                             .createDeploymentDescriptor(
@@ -577,6 +588,12 @@ public class Execution
             // null taskRestore to let it be GC'ed
             taskRestore = null;
 
+            /**
+             *  注释： 获取一个 TaskManagerGateway
+             *  slot = SingleLogicSlot
+             *  taskManagerGateway = RPCTaskManagerGateway
+             *  一台物理从节点
+             */
             final TaskManagerGateway taskManagerGateway = slot.getTaskManagerGateway();
 
             final ComponentMainThreadExecutor jobMasterMainThreadExecutor =
@@ -586,6 +603,12 @@ public class Execution
             // We run the submission in the future executor so that the serialization of large TDDs
             // does not block
             // the main thread and sync back to the main thread once submission is completed.
+            /**
+             *  提交 Task
+             *  taskManagerGateway = RPCTaskManagerGateway
+             *  Task -- ExecutionVertex（Execution） --- Slot ---- TaskManager
+             *  真正实现了 从 JobMaster 提交 Task 到 TaskManager（TaskExecutor） 执行！
+             */
             CompletableFuture.supplyAsync(
                             () -> taskManagerGateway.submitTask(deployment, rpcTimeout), executor)
                     .thenCompose(Function.identity())

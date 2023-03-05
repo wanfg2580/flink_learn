@@ -68,6 +68,10 @@ public class AbstractSessionClusterExecutor<
             @Nonnull final Configuration configuration,
             @Nonnull final ClassLoader userCodeClassloader)
             throws Exception {
+        /**
+         *  pipeline = StreamGraph
+         *  将 StreamGraph 转换为 JobGraph
+         */
         final JobGraph jobGraph =
                 PipelineExecutorUtils.getJobGraph(pipeline, configuration, userCodeClassloader);
 
@@ -80,6 +84,11 @@ public class AbstractSessionClusterExecutor<
                     clusterDescriptor.retrieve(clusterID);
             ClusterClient<ClusterID> clusterClient = clusterClientProvider.getClusterClient();
             return clusterClient
+                    /**
+                     * 提交执行
+                     * 1. MiniClusterClient 本地执行
+                     * 2. RestClusterClient 提交到 Flink 执行
+                     */
                     .submitJob(jobGraph)
                     .thenApplyAsync(
                             FunctionUtils.uncheckedFunction(

@@ -628,6 +628,22 @@ public class DataStream<T> {
      */
     public <R> SingleOutputStreamOperator<R> flatMap(
             FlatMapFunction<T, R> flatMapper, TypeInformation<R> outputType) {
+        /*************************************************
+         *  flink把每一个算子transform成一个对流的转换
+         *  并且注册到执行环境中，用于生成StreamGraph
+         *  -
+         *  第一步：用户代码里定义的UDF会被当作其基类对待，然后交给 StreamFlatMap 这个 operator 做进一步包装。
+         *  事实上，每一个Transformation都对应了一个StreamOperator。
+         *  -
+         *  flink流式计算的核心概念，就是将数据从输入流一个个传递给Operator进行链式处理，最后交给输出流的过程
+         *  -
+         *  StreamFlatMap 是一个 Function 也是一个 StreamOperator
+         *  -
+         *  StreamFlatMap = StreamOperator
+         *  flatMapper = Function
+         *  -最终调用 transform 方法来把 StreamFlatMap 这种StreamOperator 转换成 Transformation
+         *  最终加入到 StreamExectiionEnvironment 的 List<Transformation<?>> transformations
+         */
         return transform("Flat Map", outputType, new StreamFlatMap<>(clean(flatMapper)));
     }
 
@@ -1204,7 +1220,10 @@ public class DataStream<T> {
         @SuppressWarnings({"unchecked", "rawtypes"})
         SingleOutputStreamOperator<R> returnStream =
                 new SingleOutputStreamOperator(environment, resultTransform);
-
+        /**
+         *  把 Operator 注册到执行环境中，用于生成 StreamGraph
+         *  最后，将该 transformation 注册到执行环境中，当执行 generate 方法时，生成 StreamGraph 图结构。
+         */
         getExecutionEnvironment().addOperator(resultTransform);
 
         return returnStream;

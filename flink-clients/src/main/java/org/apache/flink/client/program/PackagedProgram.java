@@ -352,6 +352,7 @@ public class PackagedProgram implements AutoCloseable {
         }
 
         try {
+            // 调用应用程序 main 方法
             mainMethod.invoke(null, (Object) args);
         } catch (IllegalArgumentException e) {
             throw new ProgramInvocationException(

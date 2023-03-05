@@ -64,6 +64,9 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
                 slotRequestId,
                 resourceProfile);
 
+        /**
+         * 尝试从 SlotPool 申请
+         */
         Optional<PhysicalSlot> availablePhysicalSlot =
                 tryAllocateFromAvailable(slotRequestId, slotProfile);
 
@@ -71,6 +74,7 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
         slotFuture =
                 availablePhysicalSlot
                         .map(CompletableFuture::completedFuture)
+                        // SlotPool 没有可以用的 slot，申请新的 slot
                         .orElseGet(
                                 () ->
                                         requestNewSlot(

@@ -1172,7 +1172,7 @@ public class CliFrontend {
             final CliFrontend cli = new CliFrontend(configuration, customCommandLines);
 
             SecurityUtils.install(new SecurityConfiguration(cli.configuration));
-            // 解析命令行
+            // 解析命令行并开始请求操作
             retCode = SecurityUtils.getInstalledContext().runSecured(() -> cli.parseAndRun(args));
         } catch (Throwable t) {
             final Throwable strippedThrowable =

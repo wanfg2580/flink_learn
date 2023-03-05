@@ -600,6 +600,14 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     // Task lifecycle RPCs
     // ----------------------------------------------------------------------
 
+    /**
+     * 提交 Task 让 TaskManager 启动
+     * 第一个参数： TaskDeploymentDescriptor 包含启动当前这个 Task 所需要的一切信息
+     * @param tdd describing the task to submit
+     * @param jobMasterId identifying the submitting JobMaster
+     * @param timeout of the submit operation
+     * @return
+     */
     @Override
     public CompletableFuture<Acknowledge> submitTask(
             TaskDeploymentDescriptor tdd, JobMasterId jobMasterId, Time timeout) {
@@ -608,6 +616,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             final JobID jobId = tdd.getJobId();
             final ExecutionAttemptID executionAttemptID = tdd.getExecutionAttemptId();
 
+            // 检查和 ResourceManager 的链接是否为空
             final JobTable.Connection jobManagerConnection =
                     jobTable.getConnection(jobId)
                             .orElseThrow(
@@ -622,6 +631,12 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                                         return new TaskSubmissionException(message);
                                     });
 
+            /**
+             *  校验
+             *  1、当初 是哪个 JobMaster 申请的 slot 资源， ResourceManager 把 slot 分给了它
+             *  2、必须要校验 jobMasterID, 防止任务被错误提交
+             */
+            // 如果提交 Job 过来的 JobManager 和现在 Active JobManager 不是同一个了的话，则拒绝提交
             if (!Objects.equals(jobManagerConnection.getJobMasterId(), jobMasterId)) {
                 final String message =
                         "Rejecting the task submission because the job manager leader id "
@@ -633,7 +648,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                 log.debug(message);
                 throw new TaskSubmissionException(message);
             }
-
+            // 当前节点已经有 Slot 申请到了
             if (!taskSlotTable.tryMarkSlotActive(jobId, tdd.getAllocationId())) {
                 final String message =
                         "No task slot allocated for job ID "
@@ -645,6 +660,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                 throw new TaskSubmissionException(message);
             }
 
+            // 重新整合卸载的数据
             // re-integrate offloaded data:
             try {
                 tdd.loadBigData(taskExecutorBlobService.getPermanentBlobService());
@@ -654,6 +670,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             }
 
             // deserialize the pre-serialized information
+            // 反序列化获取 Job 和 Task 信息
             final JobInformation jobInformation;
             final TaskInformation taskInformation;
             try {
@@ -668,6 +685,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                         "Could not deserialize the job or task information.", e);
             }
 
+            // 如果 JobID 冲突了，拒绝处理
             if (!jobId.equals(jobInformation.getJobId())) {
                 throw new TaskSubmissionException(
                         "Inconsistent job ID information inside TaskDeploymentDescriptor ("
@@ -686,6 +704,10 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             TaskMetricGroup taskMetricGroup =
                     jobGroup.addTask(tdd.getExecutionAttemptId(), taskInformation.getTaskName());
 
+            /**
+             *  初始化 RpcInputSplitProvider
+             *  即初始化 operator 输入组件
+             */
             InputSplitProvider inputSplitProvider =
                     new RpcInputSplitProvider(
                             jobManagerConnection.getJobManagerGateway(),
@@ -730,9 +752,9 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             } catch (IOException e) {
                 throw new TaskSubmissionException(e);
             }
-
+            // 启动任务的时候需要的待恢复的数据
             final JobManagerTaskRestore taskRestore = tdd.getTaskRestore();
-
+            // 初始化 TaskStateManagerImpl Task 状态管理
             final TaskStateManager taskStateManager =
                     new TaskStateManagerImpl(
                             jobId,
@@ -750,6 +772,23 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                 throw new TaskSubmissionException("Could not submit task.", e);
             }
 
+            /**
+             *  构建 Task
+             *  内部会初始化一个执行线程。一个Task 是线程级别的执行粒度
+             *  当初 JobMaster 提交 Task 提交过来的时候。其实是 ： tdd
+             *  最终经过一系列的初始化，准备，校验，等等各种操作，把 TDD 转变成 Task
+             *
+             *  Task 是所有 Task 的抽象！
+             *  但是 在 Flink 的实现有很多种：
+             *  1、StreamTask   （Source  Sink）
+             *  2、BoundedStreamTask
+             *  3、OneInputStreamTask   		只是针对一个 DataStream
+             *     TwoInputStrewamTask			union  join
+             *     MultiInputStreamTask			超过2个
+             */
+            // 当具体这个 Task 要执行的时候，其实就会去判断，
+            // 对应的这个 Task 到底对应的那个 ExecutoVertex 对应的启动类 Invokable 是谁
+            // 通过反射的方式来调用启动类执行
             Task task =
                     new Task(
                             jobInformation,
@@ -795,6 +834,12 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             }
 
             if (taskAdded) {
+                /**
+                 * TODO_MA 马中华 https://blog.csdn.net/zhongqi2513
+                 *  注释： 如果注册成功，则通过一个线程来运行 Task
+                 *  当初在初始化 Task 对象的时候，构造方法的最后一句代码，其实就是初始化一个线程
+                 *  一台TaskManager 抽象的 slot 一般为 16 32 64
+                 */
                 task.startTaskThread();
 
                 setupResultPartitionBookkeeping(
@@ -1193,6 +1238,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
     private void allocateSlot(
             SlotID slotId, JobID jobId, AllocationID allocationId, ResourceProfile resourceProfile)
             throws SlotAllocationException {
+        // 如果有参数数量的 Slot 空余，则分配
         if (taskSlotTable.isSlotFree(slotId.getSlotNumber())) {
             if (taskSlotTable.allocateSlot(
                     slotId.getSlotNumber(),

@@ -466,6 +466,7 @@ public class RestClient implements AutoCloseableAsync {
 
     private <P extends ResponseBody> CompletableFuture<P> submitRequest(
             String targetAddress, int targetPort, Request httpRequest, JavaType responseType) {
+        // 通过 Netty 客户端发送给 Netty 服务端
         final ChannelFuture connectFuture = bootstrap.connect(targetAddress, targetPort);
 
         final CompletableFuture<Channel> channelFuture = new CompletableFuture<>();

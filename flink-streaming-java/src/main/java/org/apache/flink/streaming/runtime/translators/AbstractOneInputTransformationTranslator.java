@@ -59,7 +59,7 @@ abstract class AbstractOneInputTransformationTranslator<IN, OUT, OP extends Tran
         final String slotSharingGroup = context.getSlotSharingGroup();
         final int transformationId = transformation.getId();
         final ExecutionConfig executionConfig = streamGraph.getExecutionConfig();
-
+        // 生成 streamGraph 并添加到集合中
         streamGraph.addOperator(
                 transformationId,
                 slotSharingGroup,
@@ -73,20 +73,20 @@ abstract class AbstractOneInputTransformationTranslator<IN, OUT, OP extends Tran
             TypeSerializer<?> keySerializer = stateKeyType.createSerializer(executionConfig);
             streamGraph.setOneInputStateKey(transformationId, stateKeySelector, keySerializer);
         }
-
+        // 设置并行度
         int parallelism =
                 transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
                         ? transformation.getParallelism()
                         : executionConfig.getParallelism();
         streamGraph.setParallelism(transformationId, parallelism);
         streamGraph.setMaxParallelism(transformationId, transformation.getMaxParallelism());
-
+        // 获取当前节点的 父节点的信息
         final List<Transformation<?>> parentTransformations = transformation.getInputs();
         checkState(
                 parentTransformations.size() == 1,
                 "Expected exactly one input transformation but found "
                         + parentTransformations.size());
-
+        // 将 StreamNode 父节点和子节点关联起来
         for (Integer inputId : context.getStreamNodeIds(parentTransformations.get(0))) {
             streamGraph.addEdge(inputId, transformationId, 0);
         }

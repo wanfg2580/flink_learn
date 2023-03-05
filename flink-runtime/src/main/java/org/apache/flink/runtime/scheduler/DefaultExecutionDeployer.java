@@ -93,14 +93,13 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         validateExecutionStates(executionsToDeploy);
 
         transitionToScheduled(executionsToDeploy);
-
-        final List<ExecutionSlotAssignment> executionSlotAssignments =
-                allocateSlotsFor(executionsToDeploy);
-
+        // 申请 slot
+        final List<ExecutionSlotAssignment> executionSlotAssignments = allocateSlotsFor(executionsToDeploy);
+        // 构建 DeploymentHandle
         final List<ExecutionDeploymentHandle> deploymentHandles =
                 createDeploymentHandles(
                         executionsToDeploy, requiredVersionByVertex, executionSlotAssignments);
-
+        // 部署 Task 到 TaskManager
         waitForAllSlotsAndDeploy(deploymentHandles);
     }
 
@@ -124,6 +123,17 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
                 executionsToDeploy.stream()
                         .map(Execution::getAttemptId)
                         .collect(Collectors.toList());
+        /**
+         *  通过一个专业的 ExecutionSlotAllocator slot申请器 来申请 Slots
+         *  参数内部执行操作：
+         *  ExecutionVertexDeploymentOption ==> ExecutionVertexId ==>
+         *  ExecutionVertex ==> ExecutionVertexSchedulingRequirements
+         *
+         * 申请 Slot 过程中有两种抽象
+         * 1. LogicalSlot 逻辑slot
+         * 2. PhysicalSlot 物理slot
+         * 每个申请 slot 的Task 都能申请到一个 LogicalSlot，可能多个 task 申请到的 LogicalSlot 属于 同一个 PhysicalSlot
+         */
         return executionSlotAllocator.allocateSlotsFor(executionAttemptIds);
     }
 
@@ -150,6 +160,14 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
     }
 
     private void waitForAllSlotsAndDeploy(final List<ExecutionDeploymentHandle> deploymentHandles) {
+        /**
+         *  注释： 调用 deployAll() 部署任务
+         *  1、assignAllResources(deploymentHandles) 分配 slot
+         *  2、deployAll(deploymentHandles) 执行任务部署
+         *  之前只是申请！分配有可能成功，也有可能失败
+         *  -
+         *  把 deploymentHandles 中的每一个元素 和 slotExecutionVertexAssignments 中的每个元素做一一对应
+         */
         FutureUtils.assertNoException(
                 assignAllResourcesAndRegisterProducedPartitions(deploymentHandles)
                         .handle(deployAll(deploymentHandles)));
@@ -182,11 +200,20 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
             final List<ExecutionDeploymentHandle> deploymentHandles) {
         return (ignored, throwable) -> {
             propagateIfNonNull(throwable);
+            // 遍历部署 Task 到 TaskManager
             for (final ExecutionDeploymentHandle deploymentHandle : deploymentHandles) {
                 final CompletableFuture<LogicalSlot> slotAssigned =
                         deploymentHandle.getLogicalSlotFuture();
                 checkState(slotAssigned.isDone());
 
+                /**
+                 *  通过 deployOrHandleError 来进行部署
+                 *  部署 Task 的时候，也有可能会报错！
+                 *  1、slotAssigned
+                 *  2、deploymentHandle
+                 *  3、slotExecutionVertexAssignment
+                 *  这三者一一对应
+                 */
                 FutureUtils.assertNoException(
                         slotAssigned.handle(deployOrHandleError(deploymentHandle)));
             }
@@ -307,6 +334,7 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
             }
 
             if (throwable == null) {
+                // 部署 Task，根据 ExecutionVertexID 来确定 Task
                 deployTaskSafe(execution);
             } else {
                 handleTaskDeploymentFailure(execution, throwable);

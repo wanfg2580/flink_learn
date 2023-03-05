@@ -67,6 +67,7 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
     @Override
     public List<ExecutionSlotAssignment> allocateSlotsFor(
             List<ExecutionAttemptID> executionAttemptIds) {
+        // 遍历 executionAttemptIds
         return executionAttemptIds.stream()
                 .map(id -> new ExecutionSlotAssignment(id, allocateSlotFor(id)))
                 .collect(Collectors.toList());
@@ -89,6 +90,7 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
                 new PhysicalSlotRequest(slotRequestId, slotProfile, slotWillBeOccupiedIndefinitely);
         final CompletableFuture<LogicalSlot> slotFuture =
                 slotProvider
+                        // 申请物理 slot
                         .allocatePhysicalSlot(request)
                         .thenApply(
                                 physicalSlotRequest ->
@@ -102,6 +104,7 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
                     this.slotProvider.cancelSlotRequest(slotRequestId, throwable);
                     return null;
                 });
+        // 申请结果加入集合
         this.requestedPhysicalSlots.put(executionAttemptId, slotRequestId, slotFuture);
         return slotFuture;
     }
